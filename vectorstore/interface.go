@@ -15,7 +15,12 @@ type VectorStore interface {
 // SearchFilter defines filtering options for vector search.
 type SearchFilter struct {
 	// SourceID filters results to a specific source/collection.
+	// Deprecated: Use SourceIDs for filtering by multiple sources.
 	SourceID string
+
+	// SourceIDs filters results to multiple sources/collections.
+	// If both SourceID and SourceIDs are set, SourceIDs takes precedence.
+	SourceIDs []string
 
 	// Metadata filters results by metadata key-value pairs.
 	Metadata map[string]any

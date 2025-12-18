@@ -3,16 +3,17 @@ package qdrant
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/creastat/storage/vectorstore"
 	"github.com/qdrant/go-client/qdrant"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Config holds Qdrant connection configuration.
 type Config struct {
-	// URL is the Qdrant server address (e.g., "localhost:6334").
+	// URL is the Qdrant server address (e.g., "https://example.qdrant.io:6333").
 	URL string
 
 	// CollectionName is the name of the collection to search.
@@ -24,8 +25,7 @@ type Config struct {
 
 // Client implements vectorstore.VectorStore for Qdrant.
 type Client struct {
-	conn           *grpc.ClientConn
-	points         qdrant.PointsClient
+	client         *qdrant.Client
 	collectionName string
 }
 
@@ -35,15 +35,43 @@ func New(cfg Config) (*Client, error) {
 		return nil, fmt.Errorf("qdrant url is required")
 	}
 
-	// TODO: Add support for API Key / TLS
-	conn, err := grpc.NewClient(cfg.URL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Parse the URL to extract host, port, and scheme
+	parsedURL := cfg.URL
+	if !strings.HasPrefix(parsedURL, "http://") && !strings.HasPrefix(parsedURL, "https://") {
+		parsedURL = "https://" + parsedURL
+	}
+
+	u, err := url.Parse(parsedURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to qdrant: %w", err)
+		return nil, fmt.Errorf("failed to parse qdrant url: %w", err)
+	}
+
+	// Extract host and port
+	host := u.Hostname()
+	port := 6334 // default port
+	if u.Port() != "" {
+		p, err := strconv.Atoi(u.Port())
+		if err != nil {
+			return nil, fmt.Errorf("invalid port: %w", err)
+		}
+		port = p
+	}
+
+	useTLS := u.Scheme == "https"
+
+	// Create Qdrant client
+	qdrantClient, err := qdrant.NewClient(&qdrant.Config{
+		Host:   host,
+		Port:   port,
+		APIKey: cfg.APIKey,
+		UseTLS: useTLS,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create qdrant client: %w", err)
 	}
 
 	return &Client{
-		conn:           conn,
-		points:         qdrant.NewPointsClient(conn),
+		client:         qdrantClient,
 		collectionName: cfg.CollectionName,
 	}, nil
 }
@@ -51,22 +79,24 @@ func New(cfg Config) (*Client, error) {
 // Search implements vectorstore.VectorStore.
 func (c *Client) Search(ctx context.Context, vector []float32, filter vectorstore.SearchFilter, limit int) ([]vectorstore.SearchResult, error) {
 	// Build Qdrant filter
-	qFilter := buildFilter(filter)
+	qdrantFilter := buildQdrantFilter(filter)
 
-	res, err := c.points.Search(ctx, &qdrant.SearchPoints{
+    // Perform search using Query method
+    limitUint64 := uint64(limit)
+    points, err := c.client.Query(ctx, &qdrant.QueryPoints{
 		CollectionName: c.collectionName,
-		Vector:         vector,
-		Limit:          uint64(limit),
-		Filter:         qFilter,
-		WithPayload:    &qdrant.WithPayloadSelector{SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true}},
+		Query:          qdrant.NewQuery(vector...),
+        Limit:          &limitUint64,
+		Filter:         qdrantFilter,
+		WithPayload:    qdrant.NewWithPayload(true),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("qdrant search failed: %w", err)
 	}
 
 	// Convert results
-	results := make([]vectorstore.SearchResult, 0, len(res.Result))
-	for _, point := range res.Result {
+	results := make([]vectorstore.SearchResult, 0, len(points))
+	for _, point := range points {
 		// Apply min score filter
 		if filter.MinScore > 0 && point.Score < filter.MinScore {
 			continue
@@ -116,15 +146,44 @@ func (c *Client) Search(ctx context.Context, vector []float32, filter vectorstor
 
 // Close implements vectorstore.VectorStore.
 func (c *Client) Close() error {
-	return c.conn.Close()
+	return c.client.Close()
 }
 
-// buildFilter converts SearchFilter to Qdrant Filter.
-func buildFilter(filter vectorstore.SearchFilter) *qdrant.Filter {
+// buildQdrantFilter converts SearchFilter to Qdrant Filter.
+func buildQdrantFilter(filter vectorstore.SearchFilter) *qdrant.Filter {
 	var conditions []*qdrant.Condition
 
-	// Filter by source_id
-	if filter.SourceID != "" {
+	// Filter by source_id(s)
+	if len(filter.SourceIDs) > 0 {
+		if len(filter.SourceIDs) == 1 {
+			// Single source ID
+			conditions = append(conditions, &qdrant.Condition{
+				ConditionOneOf: &qdrant.Condition_Field{
+					Field: &qdrant.FieldCondition{
+						Key:   "source_id",
+						Match: &qdrant.Match{MatchValue: &qdrant.Match_Keyword{Keyword: filter.SourceIDs[0]}},
+					},
+				},
+			})
+		} else {
+			// Multiple source IDs
+			keywords := make([]string, len(filter.SourceIDs))
+			copy(keywords, filter.SourceIDs)
+			conditions = append(conditions, &qdrant.Condition{
+				ConditionOneOf: &qdrant.Condition_Field{
+					Field: &qdrant.FieldCondition{
+						Key: "source_id",
+						Match: &qdrant.Match{
+							MatchValue: &qdrant.Match_Keywords{
+								Keywords: &qdrant.RepeatedStrings{Strings: keywords},
+							},
+						},
+					},
+				},
+			})
+		}
+	} else if filter.SourceID != "" {
+		// Backward compatibility: single source ID
 		conditions = append(conditions, &qdrant.Condition{
 			ConditionOneOf: &qdrant.Condition_Field{
 				Field: &qdrant.FieldCondition{

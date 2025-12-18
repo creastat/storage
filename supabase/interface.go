@@ -16,6 +16,9 @@ type Store interface {
 	// GetSource retrieves a source by ID
 	GetSource(ctx context.Context, sourceID string) (*Source, error)
 
+	// GetSourcesByAssistantID retrieves all active sources for an assistant
+	GetSourcesByAssistantID(ctx context.Context, assistantID string) ([]Source, error)
+
 	// GetDocument retrieves a document by ID
 	GetDocument(ctx context.Context, documentID string) (*Document, error)
 

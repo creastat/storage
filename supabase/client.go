@@ -141,6 +141,27 @@ func (c *Client) GetSource(ctx context.Context, sourceID string) (*Source, error
 	return &source, nil
 }
 
+// GetSourcesByAssistantID retrieves all active sources for an assistant
+func (c *Client) GetSourcesByAssistantID(ctx context.Context, assistantID string) ([]Source, error) {
+	var sources []Source
+	_, err := c.client.From("sources").
+		Select("*", "", false).
+		Eq("assistant_id", assistantID).
+		Eq("is_active", "true").
+		ExecuteTo(&sources)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sources by assistant_id: %w", err)
+	}
+
+	// Cache each source by ID
+	for i := range sources {
+		c.addToCache("id", sources[i].ID, &sources[i])
+	}
+
+	return sources, nil
+}
+
 // GetDocument retrieves a document by ID
 func (c *Client) GetDocument(ctx context.Context, documentID string) (*Document, error) {
 	// Check cache first
