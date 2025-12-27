@@ -14,8 +14,8 @@ This library provides an abstraction for managing chat sessions with support for
 ```go
 import (
     "context"
-    "github.com/creastat/session"
-    "github.com/creastat/session/drivers"
+    "github.com/creastat/storage/session"
+    "github.com/creastat/storage/session/drivers"
     "github.com/go-redis/redis/v8"
 )
 

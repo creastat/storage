@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/creastat/session"
+	"github.com/creastat/storage/session"
 	"github.com/redis/go-redis/v9"
 )
 
