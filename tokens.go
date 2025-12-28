@@ -1,4 +1,4 @@
-package session
+package storage
 
 // EstimateTokens estimates the token count for a given text using a Unicode-aware heuristic.
 // ASCII characters (English, numbers, punctuation) are weighted at ~4 per token.
