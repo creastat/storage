@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/creastat/storage/vectorstore"
+	"github.com/madmike/go-storage/vectorstore"
 	"github.com/qdrant/go-client/qdrant"
 )
 
@@ -81,12 +81,12 @@ func (c *Client) Search(ctx context.Context, vector []float32, filter vectorstor
 	// Build Qdrant filter
 	qdrantFilter := buildQdrantFilter(filter)
 
-    // Perform search using Query method
-    limitUint64 := uint64(limit)
-    points, err := c.client.Query(ctx, &qdrant.QueryPoints{
+	// Perform search using Query method
+	limitUint64 := uint64(limit)
+	points, err := c.client.Query(ctx, &qdrant.QueryPoints{
 		CollectionName: c.collectionName,
 		Query:          qdrant.NewQuery(vector...),
-        Limit:          &limitUint64,
+		Limit:          &limitUint64,
 		Filter:         qdrantFilter,
 		WithPayload:    qdrant.NewWithPayload(true),
 	})
@@ -142,6 +142,67 @@ func (c *Client) Search(ctx context.Context, vector []float32, filter vectorstor
 	}
 
 	return results, nil
+}
+
+// Upsert implements vectorstore.VectorStore.
+func (c *Client) Upsert(ctx context.Context, points []vectorstore.Point) error {
+	if len(points) == 0 {
+		return nil
+	}
+
+	qPoints := make([]*qdrant.PointStruct, len(points))
+	for i, point := range points {
+		// Convert payload
+		payload := make(map[string]*qdrant.Value)
+		for k, v := range point.Payload {
+			payload[k] = toQdrantValue(v)
+		}
+
+		// Convert ID (support UUID string or uint64)
+		var pointID *qdrant.PointId
+		if idNum, err := strconv.ParseUint(point.ID, 10, 64); err == nil {
+			pointID = &qdrant.PointId{PointIdOptions: &qdrant.PointId_Num{Num: idNum}}
+		} else {
+			pointID = &qdrant.PointId{PointIdOptions: &qdrant.PointId_Uuid{Uuid: point.ID}}
+		}
+
+		qPoints[i] = &qdrant.PointStruct{
+			Id:      pointID,
+			Vectors: &qdrant.Vectors{VectorsOptions: &qdrant.Vectors_Vector{Vector: &qdrant.Vector{Data: point.Vector}}},
+			Payload: payload,
+		}
+	}
+
+	operationInfo, err := c.client.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: c.collectionName,
+		Points:         qPoints,
+	})
+	if err != nil {
+		return fmt.Errorf("qdrant upsert failed: %w", err)
+	}
+
+	if operationInfo.Status != qdrant.UpdateStatus_Completed {
+		return fmt.Errorf("qdrant upsert status: %s", operationInfo.Status)
+	}
+
+	return nil
+}
+
+func toQdrantValue(v any) *qdrant.Value {
+	switch val := v.(type) {
+	case string:
+		return &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: val}}
+	case int:
+		return &qdrant.Value{Kind: &qdrant.Value_IntegerValue{IntegerValue: int64(val)}}
+	case int64:
+		return &qdrant.Value{Kind: &qdrant.Value_IntegerValue{IntegerValue: val}}
+	case float64:
+		return &qdrant.Value{Kind: &qdrant.Value_DoubleValue{DoubleValue: val}}
+	case bool:
+		return &qdrant.Value{Kind: &qdrant.Value_BoolValue{BoolValue: val}}
+	default:
+		return &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: fmt.Sprintf("%v", val)}}
+	}
 }
 
 // Close implements vectorstore.VectorStore.

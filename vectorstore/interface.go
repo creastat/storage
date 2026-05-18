@@ -8,8 +8,18 @@ type VectorStore interface {
 	// Search performs vector similarity search with optional filtering.
 	Search(ctx context.Context, vector []float32, filter SearchFilter, limit int) ([]SearchResult, error)
 
+	// Upsert upserts vectors into the store.
+	Upsert(ctx context.Context, points []Point) error
+
 	// Close releases any resources held by the vector store.
 	Close() error
+}
+
+// Point represents a vector with payload for upsertion.
+type Point struct {
+	ID      string
+	Vector  []float32
+	Payload map[string]any
 }
 
 // SearchFilter defines filtering options for vector search.

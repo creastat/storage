@@ -25,5 +25,3 @@ type Store interface {
 	// Close closes the store and releases any resources.
 	Close() error
 }
-
-

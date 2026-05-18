@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/creastat/storage/session"
+	"github.com/madmike/go-storage/session"
 )
 
 // InMemoryStore implements SessionStore using an in-memory map with optimistic locking.
