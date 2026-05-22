@@ -36,7 +36,7 @@ func TestNewStoreRedisNoClient(t *testing.T) {
 
 // TestNewStoreRedisWithClient creates a Redis store.
 func TestNewStoreRedisWithClient(t *testing.T) {
-	mr := miniredis.NewMiniredis()
+	mr := miniredis.NewMiniRedis()
 	require.NoError(t, mr.Start())
 	defer mr.Close()
 
@@ -122,9 +122,9 @@ func TestInMemoryStoreUpdateVersionConflict(t *testing.T) {
 	retrieved, _ := store.Get(context.Background(), "sess-123")
 	store.Update(context.Background(), retrieved)
 
-	// Try to update with stale version
-	session.Version = 1
-	err = store.Update(context.Background(), session)
+	// Try to update with stale version using a detached snapshot.
+	stale := &SessionData{ID: "sess-123", Version: 1}
+	err = store.Update(context.Background(), stale)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrVersionConflict))
 }
@@ -166,7 +166,7 @@ func TestInMemoryStoreClose(t *testing.T) {
 
 // TestRedisStoreCreate adds a session to Redis.
 func TestRedisStoreCreate(t *testing.T) {
-	mr := miniredis.NewMiniredis()
+	mr := miniredis.NewMiniRedis()
 	require.NoError(t, mr.Start())
 	defer mr.Close()
 
@@ -184,7 +184,7 @@ func TestRedisStoreCreate(t *testing.T) {
 
 // TestRedisStoreGet retrieves a session from Redis.
 func TestRedisStoreGet(t *testing.T) {
-	mr := miniredis.NewMiniredis()
+	mr := miniredis.NewMiniRedis()
 	require.NoError(t, mr.Start())
 	defer mr.Close()
 
@@ -209,7 +209,7 @@ func TestRedisStoreGet(t *testing.T) {
 
 // TestRedisStoreGetNotFound returns nil for missing session.
 func TestRedisStoreGetNotFound(t *testing.T) {
-	mr := miniredis.NewMiniredis()
+	mr := miniredis.NewMiniRedis()
 	require.NoError(t, mr.Start())
 	defer mr.Close()
 
@@ -226,7 +226,7 @@ func TestRedisStoreGetNotFound(t *testing.T) {
 
 // TestRedisStoreUpdate modifies a session.
 func TestRedisStoreUpdate(t *testing.T) {
-	mr := miniredis.NewMiniredis()
+	mr := miniredis.NewMiniRedis()
 	require.NoError(t, mr.Start())
 	defer mr.Close()
 
@@ -250,7 +250,7 @@ func TestRedisStoreUpdate(t *testing.T) {
 
 // TestRedisStoreDelete removes a session.
 func TestRedisStoreDelete(t *testing.T) {
-	mr := miniredis.NewMiniredis()
+	mr := miniredis.NewMiniRedis()
 	require.NoError(t, mr.Start())
 	defer mr.Close()
 
@@ -273,10 +273,10 @@ func TestRedisStoreDelete(t *testing.T) {
 // TestSessionDataStruct tests the SessionData structure.
 func TestSessionDataStruct(t *testing.T) {
 	session := &SessionData{
-		ID:         "sess-123",
-		Version:    1,
-		Language:   "en",
-		TTSEnabled: true,
+		ID:             "sess-123",
+		Version:        1,
+		Language:       "en",
+		TTSEnabled:     true,
 		AllowedOrigins: []string{"https://example.com"},
 		ConversationHistory: []Message{
 			{Role: "user", Content: "hello"},
@@ -355,11 +355,3 @@ func TestSessionDataConfig(t *testing.T) {
 	require.Equal(t, 60, session.RateLimits["requests_per_minute"])
 	require.Equal(t, true, session.Config["feature_flag_1"])
 }
-
-// Define error types that are referenced
-var (
-	ErrInvalidStoreType = errors.New("invalid store type")
-	ErrInvalidConfig    = errors.New("invalid config")
-	ErrNotFound         = errors.New("session not found")
-	ErrVersionConflict  = errors.New("version conflict")
-)
