@@ -7,7 +7,6 @@ This directory contains implementations for various data storage solutions integ
 ## Supported Storage Providers
 
 - **Redis**: High-performance key-value store for session management and caching
-- **Supabase**: PostgreSQL-based solution with real-time capabilities
 - **Qdrant**: Specialized vector database for embeddings storage
 - **In-Memory**: Lightweight option for development and testing
 
@@ -35,11 +34,3 @@ See [vectorstore/README.md](vectorstore/README.md) for Qdrant integration detail
 ```go
 p := pipeline.NewPipelineWithConfig(storageConfig)
 ```
-
-## Contributing
-
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for contribution guidelines
-
-## License
-
-[MIT License](../../LICENSE)

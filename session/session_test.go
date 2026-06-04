@@ -116,11 +116,11 @@ func TestInMemoryStoreUpdateVersionConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	session := &SessionData{ID: "sess-123"}
-	store.Create(context.Background(), session)
+	_ = store.Create(context.Background(), session)
 
 	// Fetch and update once to bump version
 	retrieved, _ := store.Get(context.Background(), "sess-123")
-	store.Update(context.Background(), retrieved)
+	_ = store.Update(context.Background(), retrieved)
 
 	// Try to update with stale version using a detached snapshot.
 	stale := &SessionData{ID: "sess-123", Version: 1}
@@ -146,7 +146,7 @@ func TestInMemoryStoreDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	session := &SessionData{ID: "sess-123"}
-	store.Create(context.Background(), session)
+	_ = store.Create(context.Background(), session)
 
 	err = store.Delete(context.Background(), "sess-123")
 	require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestRedisStoreGet(t *testing.T) {
 		ID:       "sess-123",
 		Language: "en",
 	}
-	store.Create(context.Background(), session)
+	_ = store.Create(context.Background(), session)
 
 	retrieved, err := store.Get(context.Background(), "sess-123")
 	require.NoError(t, err)
@@ -235,7 +235,7 @@ func TestRedisStoreUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	session := &SessionData{ID: "sess-123"}
-	store.Create(context.Background(), session)
+	_ = store.Create(context.Background(), session)
 
 	retrieved, _ := store.Get(context.Background(), "sess-123")
 	retrieved.Language = "es"
@@ -259,7 +259,7 @@ func TestRedisStoreDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	session := &SessionData{ID: "sess-123"}
-	store.Create(context.Background(), session)
+	_ = store.Create(context.Background(), session)
 
 	err = store.Delete(context.Background(), "sess-123")
 	require.NoError(t, err)
